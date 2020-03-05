@@ -1,7 +1,7 @@
 import operator
 from queue import LifoQueue, PriorityQueue, Queue
 from random import shuffle
-from typing import List, Set
+from typing import List
 from time import time
 
 
@@ -97,6 +97,9 @@ class Map:
             tuple(self.patients)
         ))
 
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
     def __hash__(self):
         return hash((
             self.ambulance,
@@ -142,6 +145,7 @@ class SearchProblem:
         totalStatesCount = 0
         while not queue.empty():
             totalStatesCount += 1
+
             currentState, depth = queue.get()
             visited.add(currentState)
 
@@ -149,20 +153,75 @@ class SearchProblem:
             for state in self.getSuccessors(currentState):
                 if state not in visited:
                     if state.isGoal:
-                        print("-------------------------")
                         print("Total states: ", totalStatesCount)
                         print("Unique states: ", len(visited))
                         print("Depth: ", depth)
-                        print("-------------------------")
                         return depth
 
                     queue.put((state, depth))
 
         return -1
 
+    def dls(self, startState: Map, maxDepth: int):
+        stack: LifoQueue[Map] = LifoQueue()
+        stack.put((startState, 0))
+
+        visited = set()
+        visitDepth = {}
+
+        totalStatesCount = 0
+        while not stack.empty():
+            totalStatesCount += 1
+
+            currentState, depth = stack.get()
+            visited.add(currentState)
+            visitDepth[currentState] = depth
+
+
+            if depth == maxDepth:
+                continue
+
+            depth += 1
+            for state in self.getSuccessors(currentState):
+                if state not in visited or visitDepth[state] > depth:
+                    if state.isGoal:
+                        print("Total states: ", totalStatesCount)
+                        print("Unique states: ", len(visited))
+                        print("Depth: ", depth)
+                        return depth
+
+                    stack.put((state, depth))
+
+        return -1
+
+
+    def ids(self):
+        startState: Map = self.getStartState()
+        if startState.isGoal:
+            return 0
+
+        maxDepth = 1
+        res = -1
+        while res == -1:
+            res = self.dls(startState, maxDepth)
+            maxDepth += 1
+
+        return res
+
 
 problem = SearchProblem('./1.in')
 
-print(time())
+print("---------  BFS  ---------")
+print("Start: ", time())
 problem.bfs()
-print(time())
+print("End: ", time())
+print("-------------------------")
+
+print()
+
+print("---------  IDS  ---------")
+print("Start: ", time())
+problem.ids()
+print("End: ", time())
+print("-------------------------")
+

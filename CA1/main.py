@@ -129,6 +129,30 @@ class Map:
         ))
 
 class SearchProblem:
+    class ResultGenerator:
+        KEY_DEPTH = "Depth"
+        KET_SUCCEEDED = "Succeeded"
+        KEY_TOTAL_STATES = "Total States"
+        KEY_UNIQUE_STATES = "Unique States"
+
+        @classmethod
+        def failure(cls) -> dict:
+            return {
+                cls.KET_SUCCEEDED: False,
+                cls.KEY_DEPTH: -1,
+                cls.KEY_TOTAL_STATES: -1,
+                cls.KEY_UNIQUE_STATES: -1,
+            }
+
+        @classmethod
+        def success(cls, depth=0, totalStatesCount=0, uniqueStatesCount=0) -> dict:
+            return {
+                cls.KET_SUCCEEDED: True,
+                cls.KEY_DEPTH: depth,
+                cls.KEY_TOTAL_STATES: totalStatesCount,
+                cls.KEY_UNIQUE_STATES: uniqueStatesCount,
+            }
+
     def __init__(self, inputFileName: str):
         self.inputFileName = inputFileName
         self.POSSIBLE_MOVES = [
@@ -156,7 +180,7 @@ class SearchProblem:
     def bfs(self):
         startState: Map = self.getStartState()
         if startState.isGoal:
-            return 0
+            return self.ResultGenerator.success()
 
         queue: Queue[Map] = Queue()
         queue.put((startState, 0))
@@ -174,14 +198,15 @@ class SearchProblem:
             for state in self.getSuccessors(currentState):
                 if state not in visited:
                     if state.isGoal:
-                        print("Total states: ", totalStatesCount)
-                        print("Unique states: ", len(visited))
-                        print("Depth: ", depth)
-                        return depth
+                        return self.ResultGenerator.success(
+                            depth=depth,
+                            totalStatesCount=totalStatesCount,
+                            uniqueStatesCount=len(visited)
+                        )
 
                     queue.put((state, depth))
 
-        return -1
+        return self.ResultGenerator.failure()
 
     def dls(self, startState: Map, maxDepth: int):
         stack: LifoQueue[Map] = LifoQueue()
@@ -206,24 +231,25 @@ class SearchProblem:
             for state in self.getSuccessors(currentState):
                 if state not in visited or visitDepth[state] > depth:
                     if state.isGoal:
-                        print("Total states: ", totalStatesCount)
-                        print("Unique states: ", len(visited))
-                        print("Depth: ", depth)
-                        return depth
+                        return self.ResultGenerator.success(
+                            depth=depth,
+                            totalStatesCount=totalStatesCount,
+                            uniqueStatesCount=len(visited)
+                        )
 
                     stack.put((state, depth))
 
-        return -1
+        return self.ResultGenerator.failure()
 
 
     def ids(self):
         startState: Map = self.getStartState()
         if startState.isGoal:
-            return 0
+            return self.ResultGenerator.success()
 
         maxDepth = 1
-        res = -1
-        while res == -1:
+        res = self.ResultGenerator.failure()
+        while not res[self.ResultGenerator.KET_SUCCEEDED]:
             res = self.dls(startState, maxDepth)
             maxDepth += 1
 
@@ -232,7 +258,7 @@ class SearchProblem:
     def astar(self, heuristic):
         startState: Map = self.getStartState()
         if startState.isGoal:
-            return 0
+            return self.ResultGenerator.success()
 
         queue: PriorityQueue[Map] = PriorityQueue()
         queue.put((heuristic(startState), (startState, 0)))
@@ -251,14 +277,15 @@ class SearchProblem:
             for state in self.getSuccessors(currentState):
                 if state not in visited:
                     if state.isGoal:
-                        print("Total states: ", totalStatesCount)
-                        print("Unique states: ", len(visited))
-                        print("Depth: ", depth)
-                        return depth
+                        return self.ResultGenerator.success(
+                            depth=depth,
+                            totalStatesCount=totalStatesCount,
+                            uniqueStatesCount=len(visited)
+                        )
 
                     queue.put((heuristic(state) + depth, (state, depth)))
 
-        return -1
+        return self.ResultGenerator.failure()
 
 def h1(state: Map):
     return state.findNearestHospitalToPatientsDistance()
@@ -268,25 +295,26 @@ def h2(state: Map):
 
 def test(problem):
     from time import time
+
     print("---------  BFS  ---------")
     start = time()
-    problem.bfs()
+    print(problem.bfs())
     print("Time: ", time() - start)
 
     print("---------  IDS  ---------")
     start = time()
-    problem.ids()
+    print(problem.ids())
     print("Time: ", time() - start)
 
     print("---------  A* h1  -------")
     start = time()
-    problem.astar(h1)
+    print(problem.astar(h1))
     print("Time: ", time() - start)
 
 
     print("---------  A* h2  -------")
     start = time()
-    problem.astar(h2)
+    print(problem.astar(h2))
     print("Time: ", time() - start)
 
     print("\n*************************\n")

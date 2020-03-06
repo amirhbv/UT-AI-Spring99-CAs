@@ -2,12 +2,15 @@ import operator
 from queue import LifoQueue, PriorityQueue, Queue
 from random import shuffle
 from typing import List
-from time import time
 
 
 def moveTuple(pos: tuple, d: tuple) -> tuple:
     return tuple(map(operator.add, pos, d))
 
+def manhattanDistance(a: tuple, b: tuple) -> int:
+    x1, y1 = a
+    x2, y2 = b
+    return abs(x2 - x1) + abs(y2 - y1)
 
 class Map:
     def __init__(self, ambulance: tuple, hospitals: dict, patients: list, obstacles: list):
@@ -48,6 +51,21 @@ class Map:
             pass
 
         return True
+
+    def findNearestHospitalDistance(self, patient: tuple) -> int:
+        minDist = -1
+        for hospital in self.hospitals:
+            dist = manhattanDistance(patient, hospital)
+            minDist = dist if dist < minDist or minDist == -1 else minDist
+
+        return minDist
+
+    def findNearestHospitalToPatientsDistance(self) -> int:
+        res = 0
+        for patient in self.patients:
+            res += self.findNearestHospitalDistance(patient)
+
+        return res
 
     @property
     def isGoal(self) -> bool:
@@ -96,6 +114,9 @@ class Map:
             tuple(self.hospitals.items()),
             tuple(self.patients)
         ))
+
+    def __lt__(self, other):
+        return len(self.patients) < len(other.patients)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -208,20 +229,70 @@ class SearchProblem:
 
         return res
 
+    def astar(self, heuristic):
+        startState: Map = self.getStartState()
+        if startState.isGoal:
+            return 0
 
-problem = SearchProblem('./1.in')
+        queue: PriorityQueue[Map] = PriorityQueue()
+        queue.put((heuristic(startState), (startState, 0)))
 
-print("---------  BFS  ---------")
-print("Start: ", time())
-problem.bfs()
-print("End: ", time())
-print("-------------------------")
+        visited = set()
 
-print()
+        totalStatesCount = 0
+        while not queue.empty():
+            totalStatesCount += 1
 
-print("---------  IDS  ---------")
-print("Start: ", time())
-problem.ids()
-print("End: ", time())
-print("-------------------------")
+            _, stateDepth = queue.get()
+            currentState, depth = stateDepth
+            visited.add(currentState)
 
+            depth += 1
+            for state in self.getSuccessors(currentState):
+                if state not in visited:
+                    if state.isGoal:
+                        print("Total states: ", totalStatesCount)
+                        print("Unique states: ", len(visited))
+                        print("Depth: ", depth)
+                        return depth
+
+                    queue.put((heuristic(state) + depth, (state, depth)))
+
+        return -1
+
+def h1(state: Map):
+    return state.findNearestHospitalToPatientsDistance()
+
+def h2(state: Map):
+    return h1(state) * 3
+
+def test(problem):
+    from time import time
+    print("---------  BFS  ---------")
+    start = time()
+    problem.bfs()
+    print("Time: ", time() - start)
+
+    print("---------  IDS  ---------")
+    start = time()
+    problem.ids()
+    print("Time: ", time() - start)
+
+    print("---------  A* h1  -------")
+    start = time()
+    problem.astar(h1)
+    print("Time: ", time() - start)
+
+
+    print("---------  A* h2  -------")
+    start = time()
+    problem.astar(h2)
+    print("Time: ", time() - start)
+
+    print("\n*************************\n")
+
+
+
+test(SearchProblem('./1.in'))
+test(SearchProblem('./2.in'))
+test(SearchProblem('./3.in'))

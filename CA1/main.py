@@ -1,8 +1,4 @@
 import operator
-from queue import LifoQueue, PriorityQueue, Queue
-from random import shuffle
-from typing import List
-
 
 def moveTuple(pos: tuple, d: tuple) -> tuple:
     return tuple(map(operator.add, pos, d))
@@ -11,6 +7,10 @@ def manhattanDistance(a: tuple, b: tuple) -> int:
     x1, y1 = a
     x2, y2 = b
     return abs(x2 - x1) + abs(y2 - y1)
+
+def squaredEuclideanDistance(a: tuple, b: tuple) -> int:
+    dx, dy = tuple(map(operator.sub, a, b))
+    return dx * dx + dy * dy
 
 class Map:
     def __init__(self, ambulance: tuple, hospitals: dict, patients: list, obstacles: list):
@@ -52,18 +52,25 @@ class Map:
 
         return True
 
-    def findNearestHospitalDistance(self, patient: tuple) -> int:
+    def findNearestHospitalDistance(self, patient: tuple, distanceFunction) -> int:
         minDist = -1
         for hospital in self.hospitals:
-            dist = manhattanDistance(patient, hospital)
+            dist = distanceFunction(patient, hospital)
             minDist = dist if dist < minDist or minDist == -1 else minDist
 
         return minDist
 
-    def findNearestHospitalToPatientsDistance(self) -> int:
+    def findPatientsToNearestHospitalDistance(self, distanceFunction) -> int:
         res = 0
         for patient in self.patients:
-            res += self.findNearestHospitalDistance(patient)
+            res += self.findNearestHospitalDistance(patient, distanceFunction)
+
+        return res
+
+    def findAmbulanceToNearestHospitalDistance(self, distanceFunction) -> int:
+        res = 0
+        for patient in self.patients:
+            res += (distanceFunction(patient, self.ambulance) + self.findNearestHospitalDistance(patient, distanceFunction))
 
         return res
 
@@ -128,6 +135,10 @@ class Map:
             tuple(self.patients)
         ))
 
+from queue import LifoQueue, PriorityQueue, Queue
+from typing import List
+
+
 class SearchProblem:
     class ResultGenerator:
         KEY_DEPTH = "Depth"
@@ -161,7 +172,6 @@ class SearchProblem:
             (-1, 0),
             (0, -1),
         ]
-        shuffle(self.POSSIBLE_MOVES)
 
     def getStartState(self) -> Map:
         return Map.buildMapFromFile(self.inputFileName)
@@ -182,16 +192,16 @@ class SearchProblem:
         if startState.isGoal:
             return self.ResultGenerator.success()
 
-        queue: Queue[Map] = Queue()
-        queue.put((startState, 0))
+        frontier = Queue()
+        frontier.put((startState, 0))
 
         visited = set()
 
         totalStatesCount = 0
-        while not queue.empty():
+        while not frontier.empty():
             totalStatesCount += 1
 
-            currentState, depth = queue.get()
+            currentState, depth = frontier.get()
             visited.add(currentState)
 
             depth += 1
@@ -204,22 +214,22 @@ class SearchProblem:
                             uniqueStatesCount=len(visited)
                         )
 
-                    queue.put((state, depth))
+                    frontier.put((state, depth))
 
         return self.ResultGenerator.failure()
 
     def dls(self, startState: Map, maxDepth: int):
-        stack: LifoQueue[Map] = LifoQueue()
-        stack.put((startState, 0))
+        frontier = LifoQueue()
+        frontier.put((startState, 0))
 
         visited = set()
         visitDepth = {}
 
         totalStatesCount = 0
-        while not stack.empty():
+        while not frontier.empty():
             totalStatesCount += 1
 
-            currentState, depth = stack.get()
+            currentState, depth = frontier.get()
             visited.add(currentState)
             visitDepth[currentState] = depth
 
@@ -237,7 +247,7 @@ class SearchProblem:
                             uniqueStatesCount=len(visited)
                         )
 
-                    stack.put((state, depth))
+                    frontier.put((state, depth))
 
         return self.ResultGenerator.failure()
 
@@ -260,16 +270,16 @@ class SearchProblem:
         if startState.isGoal:
             return self.ResultGenerator.success()
 
-        queue: PriorityQueue[Map] = PriorityQueue()
-        queue.put((heuristic(startState), (startState, 0)))
+        frontier = PriorityQueue()
+        frontier.put((heuristic(startState), (startState, 0)))
 
         visited = set()
 
         totalStatesCount = 0
-        while not queue.empty():
+        while not frontier.empty():
             totalStatesCount += 1
 
-            _, stateDepth = queue.get()
+            _, stateDepth = frontier.get()
             currentState, depth = stateDepth
             visited.add(currentState)
 
@@ -283,42 +293,88 @@ class SearchProblem:
                             uniqueStatesCount=len(visited)
                         )
 
-                    queue.put((heuristic(state) + depth, (state, depth)))
+                    frontier.put((heuristic(state) + depth, (state, depth)))
 
         return self.ResultGenerator.failure()
 
+
 def h1(state: Map):
-    return state.findNearestHospitalToPatientsDistance()
+    return state.findPatientsToNearestHospitalDistance(manhattanDistance)
+    # return state.findPatientsToNearestHospitalDistance(squaredEuclideanDistance)
 
 def h2(state: Map):
-    return h1(state) * 3
+    return state.findAmbulanceToNearestHospitalDistance(manhattanDistance)
 
-def test(problem):
-    from time import time
+from time import time
+from prettytable import PrettyTable
 
-    print("---------  BFS  ---------")
-    start = time()
-    print(problem.bfs())
-    print("Time: ", time() - start)
+def test(problem: SearchProblem, repeatCount=3):
+    table = PrettyTable()
+    table.field_names = [
+        'Algorithm',
+        SearchProblem.ResultGenerator.KEY_DEPTH,
+        SearchProblem.ResultGenerator.KEY_TOTAL_STATES,
+        SearchProblem.ResultGenerator.KEY_UNIQUE_STATES,
+        'Average Time'
+    ]
 
-    print("---------  IDS  ---------")
-    start = time()
-    print(problem.ids())
-    print("Time: ", time() - start)
+    totalTime = 0
+    for i in range(repeatCount):
+        start = time()
+        res = problem.bfs()
+        totalTime += (time() - start)
 
-    print("---------  A* h1  -------")
-    start = time()
-    print(problem.astar(h1))
-    print("Time: ", time() - start)
+    table.add_row([
+        'BFS',
+        res[SearchProblem.ResultGenerator.KEY_DEPTH],
+        res[SearchProblem.ResultGenerator.KEY_TOTAL_STATES],
+        res[SearchProblem.ResultGenerator.KEY_UNIQUE_STATES],
+        totalTime / repeatCount
+    ])
 
+    totalTime = 0
+    for i in range(repeatCount):
+        start = time()
+        res = problem.ids()
+        totalTime += (time() - start)
 
-    print("---------  A* h2  -------")
-    start = time()
-    print(problem.astar(h2))
-    print("Time: ", time() - start)
+    table.add_row([
+        'IDS',
+        res[SearchProblem.ResultGenerator.KEY_DEPTH],
+        res[SearchProblem.ResultGenerator.KEY_TOTAL_STATES],
+        res[SearchProblem.ResultGenerator.KEY_UNIQUE_STATES],
+        totalTime / repeatCount
+    ])
 
-    print("\n*************************\n")
+    totalTime = 0
+    for i in range(repeatCount):
+        start = time()
+        res = problem.astar(h1)
+        totalTime += (time() - start)
 
+    table.add_row([
+        'A* (h1)',
+        res[SearchProblem.ResultGenerator.KEY_DEPTH],
+        res[SearchProblem.ResultGenerator.KEY_TOTAL_STATES],
+        res[SearchProblem.ResultGenerator.KEY_UNIQUE_STATES],
+        totalTime / repeatCount
+    ])
+
+    totalTime = 0
+    for i in range(repeatCount):
+        start = time()
+        res = problem.astar(h2)
+        totalTime += (time() - start)
+
+    table.add_row([
+        'A* (h2)',
+        res[SearchProblem.ResultGenerator.KEY_DEPTH],
+        res[SearchProblem.ResultGenerator.KEY_TOTAL_STATES],
+        res[SearchProblem.ResultGenerator.KEY_UNIQUE_STATES],
+        totalTime / repeatCount
+    ])
+
+    print(table)
 
 
 test(SearchProblem('./1.in'))

@@ -1,5 +1,39 @@
-from re import match, split
+from random import sample
+from re import findall, split
+from string import ascii_lowercase, ascii_uppercase
 from typing import List
+
+
+def shuffle_str(s: str) -> str:
+    return ''.join(sample(list(s), len(s)))
+
+class Chromosome(object):
+
+    def __init__(self, mapping: str):
+        self.mapping = {
+            k: v for k, v in zip(list(ascii_lowercase), list(mapping))
+        }
+        pass
+
+    def decode_char(self, encoded_char):
+        if encoded_char.isalpha():
+            if encoded_char.isupper():
+                return self.mapping.get(encoded_char.lower()).upper()
+            else:
+                return self.mapping.get(encoded_char)
+        else:
+            return encoded_char
+
+    def decode(self, encoded_text):
+        decoded_text = ''
+        for char in encoded_text:
+            decoded_text += self.decode_char(char)
+
+        return decoded_text
+
+    @classmethod
+    def random(cls):
+        return cls(shuffle_str(ascii_lowercase))
 
 
 class Decoder(object):
@@ -7,30 +41,27 @@ class Decoder(object):
     def __init__(self, encoded_text):
         self.encoded_text: str = encoded_text
 
-        stop_words = Decoder.generate_stop_words()
-        global_text = split('\W', open('global_text.txt').read())
-
         self.dictionary: List[str] = list(
-            filter(
-                lambda word: len(word) > 1 and word not in stop_words,
-                global_text
+            set(
+                filter(
+                    lambda word: len(word) > 1,
+                    split('\W+', open('global_text.txt').read().lower())
+                )
             )
         )
 
+    def calculate_fitness(self, chromosome: Chromosome):
+        decoded_text = chromosome.decode(self.encoded_text)
+        decoded_words = findall('\w+', decoded_text)
+        return len(set(
+            filter(
+                lambda word: len(word) > 1 and word.lower() not in self.dictionary,
+                decoded_words
+            )
+        ))
+
     def decode(self) -> str:
-        return ''
+        print(self.calculate_fitness(Chromosome.random()))
+        print(self.calculate_fitness(Chromosome('orsfwmbtizghknvelpdjcuyqax')))
 
-    @classmethod
-    def generate_stop_words(cls) -> List[str]:
-        stop_words: List[str] = []
-        try:
-            with open('stop_words.txt') as fin:
-                for line in fin:
-                    m = match('(^\w+)', line)
-                    if m:
-                        stop_words.append(m.group(1))
-
-        except Exception as e:
-            pass
-
-        return stop_words
+        # return Chromosome('orsfwmbtizghknvelpdjcuyqax').decode(self.encoded_text)

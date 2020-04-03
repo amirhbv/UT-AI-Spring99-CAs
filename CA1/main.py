@@ -79,12 +79,12 @@ class Map:
         return len(self.patients) == 0
 
     @classmethod
-    def buildMapFromMap(cls, map):
+    def buildMapFromMap(cls, m: Map):
         return cls(
-            ambulance=map.ambulance,
-            hospitals=map.hospitals,
-            patients=map.patients,
-            obstacles=map.obstacles
+            ambulance=m.ambulance,
+            hospitals=m.hospitals,
+            patients=m.patients,
+            obstacles=m.obstacles
         )
 
     @classmethod

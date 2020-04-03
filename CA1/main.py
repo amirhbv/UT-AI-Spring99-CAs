@@ -1,16 +1,24 @@
+from time import time
+from queue import LifoQueue, PriorityQueue, Queue
+from prettytable import PrettyTable
+from typing import List
 import operator
+
 
 def moveTuple(pos: tuple, d: tuple) -> tuple:
     return tuple(map(operator.add, pos, d))
+
 
 def manhattanDistance(a: tuple, b: tuple) -> int:
     x1, y1 = a
     x2, y2 = b
     return abs(x2 - x1) + abs(y2 - y1)
 
+
 def squaredEuclideanDistance(a: tuple, b: tuple) -> int:
     dx, dy = tuple(map(operator.sub, a, b))
     return dx * dx + dy * dy
+
 
 class Map:
     def __init__(self, ambulance: tuple, hospitals: dict, patients: list, obstacles: list):
@@ -26,7 +34,8 @@ class Map:
     def canMoveAmbulance(self, d: tuple) -> bool:
         newAmbulancePos = moveTuple(self.ambulance, d)
         return newAmbulancePos not in self.obstacles and \
-            (newAmbulancePos not in self.patients or self.canMovePatient(newAmbulancePos, d))
+            (newAmbulancePos not in self.patients or self.canMovePatient(
+                newAmbulancePos, d))
 
     def move(self, d: tuple) -> bool:
         """
@@ -38,7 +47,8 @@ class Map:
 
         self.ambulance = moveTuple(self.ambulance, d)
         try:
-            patientIndex = self.patients.index(self.ambulance) # raises ValueError
+            patientIndex = self.patients.index(
+                self.ambulance)  # raises ValueError
             newPatientPos = moveTuple(self.patients[patientIndex], d)
 
             if newPatientPos in self.hospitals and self.hospitals[newPatientPos]:
@@ -70,7 +80,8 @@ class Map:
     def findAmbulanceToNearestHospitalDistance(self, distanceFunction) -> int:
         res = 0
         for patient in self.patients:
-            res += (distanceFunction(patient, self.ambulance) + self.findNearestHospitalDistance(patient, distanceFunction))
+            res += (distanceFunction(patient, self.ambulance) +
+                    self.findNearestHospitalDistance(patient, distanceFunction))
 
         return res
 
@@ -79,7 +90,7 @@ class Map:
         return len(self.patients) == 0
 
     @classmethod
-    def buildMapFromMap(cls, m: Map):
+    def buildMapFromMap(cls, m):
         return cls(
             ambulance=m.ambulance,
             hospitals=m.hospitals,
@@ -134,9 +145,6 @@ class Map:
             tuple(self.hospitals.items()),
             tuple(self.patients)
         ))
-
-from queue import LifoQueue, PriorityQueue, Queue
-from typing import List
 
 
 class SearchProblem:
@@ -233,7 +241,6 @@ class SearchProblem:
             visited.add(currentState)
             visitDepth[currentState] = depth
 
-
             if depth == maxDepth:
                 continue
 
@@ -250,7 +257,6 @@ class SearchProblem:
                     frontier.put((state, depth))
 
         return self.ResultGenerator.failure()
-
 
     def ids(self):
         startState: Map = self.getStartState()
@@ -302,11 +308,10 @@ def h1(state: Map):
     return state.findPatientsToNearestHospitalDistance(manhattanDistance)
     # return state.findPatientsToNearestHospitalDistance(squaredEuclideanDistance)
 
+
 def h2(state: Map):
     return state.findAmbulanceToNearestHospitalDistance(manhattanDistance)
 
-from time import time
-from prettytable import PrettyTable
 
 def test(problem: SearchProblem, repeatCount=3):
     table = PrettyTable()

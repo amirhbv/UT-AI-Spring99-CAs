@@ -25,11 +25,7 @@ class Chromosome(object):
             return encoded_char
 
     def decode(self, encoded_text):
-        decoded_text = ''
-        for char in encoded_text:
-            decoded_text += self.decode_char(char)
-
-        return decoded_text
+        return ''.join([self.decode_char(char) for char in encoded_text])
 
     @classmethod
     def random(cls):

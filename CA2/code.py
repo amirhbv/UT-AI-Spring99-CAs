@@ -1,12 +1,34 @@
+from collections import Counter
+from math import log2
 from random import choice, random, sample
 from re import findall, split
 from string import ascii_lowercase, ascii_uppercase
-from typing import List
 from time import time
+from typing import List
 
 
 def shuffle_str(s: str) -> str:
     return ''.join(sample(list(s), len(s)))
+
+
+def pairwise(s: str, n):
+    n -= 1
+    prev = s[:n]
+
+    for item in s[n:]:
+        yield prev + item
+        prev = prev[1:] + item
+
+
+def ngram(text: str, n: int = 2):
+    counter = Counter()
+    words = split('\W+', text.lower())
+
+    for word in words:
+        for pair in pairwise(word, n):
+            counter[pair] += 1
+
+    return counter
 
 
 class Chromosome(object):
@@ -33,86 +55,45 @@ class Chromosome(object):
         return cls(shuffle_str(ascii_lowercase))
 
     @classmethod
-    def frequency_based(cls, dictionary_char_frequency, encoded_text_char_frequency):
-        print(list(zip(
-            sorted([(frequency, char)
-                    for char, frequency in dictionary_char_frequency.items()]),
-            sorted([(frequency, char)
-                    for char, frequency in encoded_text_char_frequency.items()])
-        )))
-        mapping = {
-            k: v for ((_, v), (_, k)) in zip(
-                sorted([(frequency, char)
-                        for char, frequency in dictionary_char_frequency.items()]),
-                sorted([(frequency, char)
-                        for char, frequency in encoded_text_char_frequency.items()])
-            )
-        }
-        print(mapping)
-        return cls(''.join(map(lambda c: mapping.get(c), ascii_lowercase)))
+    def crossover(cls, father, mother):
+        def generate_mapping(father, mother, first_point, second_point, max_len):
+            mapping = [' '] * max_len
+            for i in range(first_point, second_point):
+                mapping[i] = father.mapping.get(ascii_lowercase[i])
 
-    @classmethod
-    def crossover(cls, father, mother, change_threshold=0.75):
-        mapping = ''
-
-        for char in ascii_lowercase:
-            father_mapping = father.mapping.get(char)
-            mother_mapping = mother.mapping.get(char)
-
-            if random() > change_threshold:
-                mapping += choice(
-                    ''.join(
-                        filter(lambda c: c not in mapping,
-                               ascii_lowercase)
-                    )
-                )
-            elif father_mapping != mother_mapping:
-                if father_mapping not in mapping:
-                    mapping += father_mapping
-                elif mother_mapping not in mapping:
-                    mapping += mother_mapping
-                else:
-                    mapping += choice(
-                        ''.join(
-                            filter(lambda c: c not in mapping,
-                                   ascii_lowercase)
-                        )
-                    )
-            else:
+            i = j = second_point
+            while j != first_point:
+                mother_mapping = mother.mapping.get(ascii_lowercase[i])
                 if mother_mapping not in mapping:
-                    mapping += mother_mapping
-                else:
-                    mapping += choice(
-                        ''.join(
-                            filter(lambda c: c not in mapping,
-                                   ascii_lowercase)
-                        )
-                    )
+                    mapping[j] = mother_mapping
+                    j = (j + 1) % max_len
 
-            # if father_mapping != mother_mapping:
-            #     if father_mapping not in mapping:
-            #         mapping += father_mapping
-            #     elif mother_mapping not in mapping:
-            #         mapping += mother_mapping
-            #     else:
-            #         mapping += choice(
-            #             ''.join(
-            #                 filter(lambda c: c not in mapping,
-            #                        ascii_lowercase)
-            #             )
-            #         )
-            # else:
-            #     if random() < change_threshold and mother_mapping not in mapping:
-            #         mapping += mother_mapping
-            #     else:
-            #         mapping += choice(
-            #             ''.join(
-            #                 filter(lambda c: c not in mapping,
-            #                        ascii_lowercase)
-            #             )
-            #         )
+                i = (i + 1) % max_len
 
-        return cls(mapping)
+            if random() < 0.2:
+                x, y = sorted(
+                    sample(range(max_len), 2)
+                )
+                mapping[x], mapping[y] = mapping[y], mapping[x]
+
+            return ''.join(mapping)
+
+        if random() < 0.4:
+            return father, mother
+        else:
+            max_len = len(ascii_lowercase)
+            first_point, second_point = sorted(
+                sample(range(max_len), 2)
+            )
+
+            boy_mapping = generate_mapping(
+                father, mother, first_point, second_point, max_len
+            )
+            girl_mapping = generate_mapping(
+                mother, father, first_point, second_point, max_len
+            )
+
+            return cls(boy_mapping), cls(girl_mapping)
 
     def __str__(self):
         return ''.join(self.mapping.values())
@@ -123,6 +104,7 @@ class Decoder(object):
     def __init__(self, encoded_text, population_size: int = 150):
         self.encoded_text: str = encoded_text
 
+        self.ref_ngram = ngram(text=open('global_text.txt').read())
         self.dictionary = {
             k: True for k in filter(
                 lambda word: len(word) > 1,
@@ -130,55 +112,32 @@ class Decoder(object):
             )
         }
 
-        encoded_text_char_frequency = Decoder.count_char_frequency(
-            ''.join(
-                filter(
-                    lambda word: len(word) > 1,
-                    split('\W+', self.encoded_text.lower())
-                )
-            )
-        )
-        dictionary_char_frequency = Decoder.count_char_frequency(
-            ''.join(self.dictionary.keys())
-        )
-
-        print(encoded_text_char_frequency)
-        print(dictionary_char_frequency)
-
         self.population: List[Chromosome] = [
-            Chromosome.frequency_based(
-                dictionary_char_frequency,
-                encoded_text_char_frequency
-            ) if random() > 0.3 else Chromosome.random() for i in range(population_size)
+            Chromosome.random() for i in range(population_size)
         ]
         self.population_size: int = population_size
         self.fitness_cache = {}
-
-    @classmethod
-    def count_char_frequency(cls, text):
-        char_count = {
-            c: 0 for c in ascii_lowercase
-        }
-
-        for c in text:
-            if c.isalpha():
-                char_count[c.lower()] += 1
-
-        return char_count
 
     def calculate_fitness(self, chromosome: Chromosome):
         mapping = str(chromosome)
         if mapping in self.fitness_cache:
             return self.fitness_cache.get(mapping)
 
-        decoded_text = chromosome.decode(self.encoded_text)
-        decoded_words = findall('\w+', decoded_text)
-        wrong_words = set([
-            word for word in decoded_words if len(word) > 1 and word.lower() not in self.dictionary
-        ])
-        fitness = len(wrong_words)
-        if fitness < 20:
-            print(wrong_words)
+        decoded_ngram = ngram(
+            text=chromosome.decode(self.encoded_text).lower()
+        )
+
+        fitness = 0.0
+        for pair, occurrences in decoded_ngram.items():
+            fitness += occurrences * log2(self.ref_ngram[pair] or 1)
+
+        # decoded_text = chromosome.decode(self.encoded_text)
+        # decoded_words = findall('\w+', decoded_text)
+        # wrong_words = set([
+        #     word for word in decoded_words if len(word) > 1 and word.lower() not in self.dictionary
+        # ])
+        # fitness = len(wrong_words)
+
         self.fitness_cache[mapping] = fitness
         return fitness
 
@@ -188,50 +147,39 @@ class Decoder(object):
         start = time()
 
         repeat_count = 0
-        best_fitness = 9999
+        best_fitness = 0
 
         while True:
-            population = sorted(self.population, key=self.calculate_fitness)
-            f = self.calculate_fitness(population[0])
-            if f < best_fitness:
-                best_fitness = f
+            population = sorted(
+                self.population,
+                key=self.calculate_fitness,
+                reverse=True
+            )
+
+            current_best_fitness = self.calculate_fitness(population[0])
+            if current_best_fitness > best_fitness:
+                best_fitness = current_best_fitness
                 repeat_count = 0
-            elif f == best_fitness:
+            elif current_best_fitness == best_fitness:
                 repeat_count += 1
 
-            print(generation, f, population[0])
-            if f < 2:
+            print(generation, current_best_fitness, population[0])
+            if repeat_count > 100:
                 print(population[0])
                 print(time() - start)
                 return population[0].decode(self.encoded_text)
 
             self.population = []
             for i, chromosome in enumerate(population):
-                if i < (self.population_size / 5):
+                if len(self.population) >= self.population_size:
+                    break
+
+                if i < (self.population_size / 10):
                     self.population.append(chromosome)
                 else:
-                    father, mother = sample(population[:60], 2)
-                    if repeat_count > 100:
-                        change_threshold = 0.00
-                    elif repeat_count > 70:
-                        change_threshold = 0.01
-                    elif repeat_count > 60:
-                        change_threshold = 0.05
-                    elif repeat_count > 50:
-                        change_threshold = 0.15
-                    elif repeat_count > 40:
-                        change_threshold = 0.25
-                    elif repeat_count > 30:
-                        change_threshold = 0.45
-                    elif repeat_count > 20:
-                        change_threshold = 0.55
-                    elif repeat_count > 10:
-                        change_threshold = 0.65
-                    else:
-                        change_threshold = 0.75
-
-                    self.population.append(
-                        Chromosome.crossover(father, mother, change_threshold)
-                    )
+                    father, mother = sample(population[:30], 2)
+                    boy, girl = Chromosome.crossover(father, mother)
+                    self.population.append(boy)
+                    self.population.append(girl)
 
             generation += 1

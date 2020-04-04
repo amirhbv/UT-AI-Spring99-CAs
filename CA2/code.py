@@ -16,26 +16,6 @@ def shuffle_str(s: str) -> str:
     return ''.join(sample(list(s), len(s)))
 
 
-def pairwise(s: str, n):
-    n -= 1
-    prev = s[:n]
-
-    for item in s[n:]:
-        yield prev + item
-        prev = prev[1:] + item
-
-
-def ngram(text: str, n: int = 2):
-    counter = Counter()
-    words = split('\W+', text.lower())
-
-    for word in words:
-        for pair in pairwise(word, n):
-            counter[pair] += 1
-
-    return counter
-
-
 class Chromosome(object):
 
     def __init__(self, mapping: str):
@@ -104,6 +84,26 @@ class Chromosome(object):
         return ''.join(self.mapping.values())
 
 
+def ngram(text: str, n: int = 2):
+
+    def pairwise(s: str, n):
+        n -= 1
+        prev = s[:n]
+
+        for item in s[n:]:
+            yield prev + item
+            prev = prev[1:] + item
+
+    counter = Counter()
+    words = split('\W+', text.lower())
+
+    for word in words:
+        for pair in pairwise(word, n):
+            counter[pair] += 1
+
+    return counter
+
+
 class Decoder(object):
 
     def __init__(self, encoded_text, population_size: int = DEFAULT_POPULATION_SIZE):
@@ -164,7 +164,7 @@ class Decoder(object):
                 if len(self.population) >= self.population_size:
                     break
 
-                if i < (self.population_size / 10):
+                if i < (self.population_size / 5):
                     self.population.append(chromosome)
                 else:
                     father, mother = sample(population[:20], 2)

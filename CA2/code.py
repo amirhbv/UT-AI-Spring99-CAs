@@ -6,6 +6,11 @@ from string import ascii_lowercase, ascii_uppercase
 from time import time
 from typing import List
 
+DEFAULT_POPULATION_SIZE = 100
+MUTATION_PROBABILITY = 0.4
+CROSSOVER_PROBABILITY = 0.5
+MAX_REPEAT_COUNT = 100
+
 
 def shuffle_str(s: str) -> str:
     return ''.join(sample(list(s), len(s)))
@@ -70,7 +75,7 @@ class Chromosome(object):
 
                 i = (i + 1) % max_len
 
-            if random() < 0.2:
+            if random() < MUTATION_PROBABILITY:
                 x, y = sorted(
                     sample(range(max_len), 2)
                 )
@@ -78,9 +83,7 @@ class Chromosome(object):
 
             return ''.join(mapping)
 
-        if random() < 0.4:
-            return father, mother
-        else:
+        if random() < CROSSOVER_PROBABILITY:
             max_len = len(ascii_lowercase)
             first_point, second_point = sorted(
                 sample(range(max_len), 2)
@@ -94,6 +97,8 @@ class Chromosome(object):
             )
 
             return cls(boy_mapping), cls(girl_mapping)
+        else:
+            return father, mother
 
     def __str__(self):
         return ''.join(self.mapping.values())
@@ -101,17 +106,9 @@ class Chromosome(object):
 
 class Decoder(object):
 
-    def __init__(self, encoded_text, population_size: int = 150):
+    def __init__(self, encoded_text, population_size: int = DEFAULT_POPULATION_SIZE):
         self.encoded_text: str = encoded_text
-
         self.ref_ngram = ngram(text=open('global_text.txt').read())
-        self.dictionary = {
-            k: True for k in filter(
-                lambda word: len(word) > 1,
-                split('\W+', open('global_text.txt').read().lower())
-            )
-        }
-
         self.population: List[Chromosome] = [
             Chromosome.random() for i in range(population_size)
         ]
@@ -123,20 +120,12 @@ class Decoder(object):
         if mapping in self.fitness_cache:
             return self.fitness_cache.get(mapping)
 
+        fitness = 0.0
         decoded_ngram = ngram(
             text=chromosome.decode(self.encoded_text).lower()
         )
-
-        fitness = 0.0
         for pair, occurrences in decoded_ngram.items():
             fitness += occurrences * log2(self.ref_ngram[pair] or 1)
-
-        # decoded_text = chromosome.decode(self.encoded_text)
-        # decoded_words = findall('\w+', decoded_text)
-        # wrong_words = set([
-        #     word for word in decoded_words if len(word) > 1 and word.lower() not in self.dictionary
-        # ])
-        # fitness = len(wrong_words)
 
         self.fitness_cache[mapping] = fitness
         return fitness
@@ -156,18 +145,19 @@ class Decoder(object):
                 reverse=True
             )
 
-            current_best_fitness = self.calculate_fitness(population[0])
+            best_chromosome = population[0]
+            current_best_fitness = self.calculate_fitness(best_chromosome)
             if current_best_fitness > best_fitness:
                 best_fitness = current_best_fitness
                 repeat_count = 0
             elif current_best_fitness == best_fitness:
                 repeat_count += 1
 
-            print(generation, current_best_fitness, population[0])
-            if repeat_count > 100:
-                print(population[0])
-                print(time() - start)
-                return population[0].decode(self.encoded_text)
+            print(generation, current_best_fitness, best_chromosome)
+            if repeat_count > MAX_REPEAT_COUNT:
+                print("Key:", best_chromosome)
+                print("Elapsed Time:", time() - start)
+                return best_chromosome.decode(self.encoded_text)
 
             self.population = []
             for i, chromosome in enumerate(population):
@@ -177,7 +167,7 @@ class Decoder(object):
                 if i < (self.population_size / 10):
                     self.population.append(chromosome)
                 else:
-                    father, mother = sample(population[:30], 2)
+                    father, mother = sample(population[:20], 2)
                     boy, girl = Chromosome.crossover(father, mother)
                     self.population.append(boy)
                     self.population.append(girl)

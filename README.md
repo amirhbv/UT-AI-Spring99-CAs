@@ -11,3 +11,15 @@ Simple Linear Regression
 ### Assignment 1
 
 Search
+
+---
+
+### Assignment 2
+
+Genetic
+
+---
+
+### Assignment 3
+
+Text Processing and Bayesian Network

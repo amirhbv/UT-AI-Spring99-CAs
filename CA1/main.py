@@ -314,14 +314,13 @@ def h2(state: Map):
 
 
 def test(problem: SearchProblem, repeatCount=3):
-    table = PrettyTable()
-    table.field_names = [
+    table = PrettyTable(field_names=[
         'Algorithm',
         SearchProblem.ResultGenerator.KEY_DEPTH,
         SearchProblem.ResultGenerator.KEY_TOTAL_STATES,
         SearchProblem.ResultGenerator.KEY_UNIQUE_STATES,
         'Average Time'
-    ]
+    ])
 
     totalTime = 0
     for i in range(repeatCount):

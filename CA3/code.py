@@ -12,16 +12,15 @@ lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
 
 
-def get_wordnet_pos(nltk_tag):
-    return {
-        "J": wordnet.ADJ,
-        "N": wordnet.NOUN,
-        "V": wordnet.VERB,
-        "R": wordnet.ADV,
-    }.get(nltk_tag[0].upper(), None)
-
-
 def clean_text(text):
+    def get_wordnet_pos(nltk_tag):
+        return {
+            "J": wordnet.ADJ,
+            "N": wordnet.NOUN,
+            "V": wordnet.VERB,
+            "R": wordnet.ADV,
+        }.get(nltk_tag[0].upper(), None)
+
     result = []
     for sentence in nltk.sent_tokenize(text):
         tagged_sentence = [
@@ -41,29 +40,28 @@ def clean_text(text):
     return result
 
 
-class Category:
-
-    def __init__(self, category_title, category_total_rows, data_total_rows):
-        self.category_title = category_title
-        self.category_probability = category_total_rows / data_total_rows
-
-        self.words = Counter()
-        self.word_count = 0
-
-    def add_text(self, text):
-        for word in clean_text(text):
-            self.words[word] += 1
-            self.word_count += 1
-
-    def calculate_probability(self, text):
-        p = math.log10(self.category_probability)
-        for word in clean_text(text):
-            p += math.log10((self.words[word] or 0.1) / self.word_count)
-
-        return p
-
-
 class Classifier:
+
+    class Category:
+
+        def __init__(self, category_title, category_total_rows, data_total_rows):
+            self.category_title = category_title
+            self.category_probability = category_total_rows / data_total_rows
+
+            self.words = Counter()
+            self.word_count = 0
+
+        def add_text(self, text):
+            for word in clean_text(text):
+                self.words[word] += 1
+                self.word_count += 1
+
+        def calculate_probability(self, text):
+            p = math.log10(self.category_probability)
+            for word in clean_text(text):
+                p += math.log10((self.words[word] or 0.1) / self.word_count)
+
+            return p
 
     def __init__(self, data_file_name, classification_cols, category_col, oversample=False):
         self._category_col = category_col
@@ -84,7 +82,6 @@ class Classifier:
                 category.shape for _, category in df
             ]
         ])
-        print(max_category_data_rows)
 
         self.categories = {}
         self.test_data = {}
@@ -101,7 +98,7 @@ class Classifier:
                 )
 
             category_total_rows, _ = category_df.shape
-            category = Category(
+            category = Classifier.Category(
                 category_title, category_total_rows, self.total_rows)
 
             test_data = []

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import datetime
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.compose import ColumnTransformer
@@ -7,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
 
 COLUMN_TARGET = 'Is Back'
@@ -75,19 +77,47 @@ mutual_info = dict(
 X_train, X_test, y_train, y_test = train_test_split(features_df, target)
 
 
-def test_decision_tree(max_depth):
-    y_pred = DecisionTreeClassifier(
-        max_depth=max_depth).fit(X_train, y_train).predict(X_test)
+def test_classifier(Classifier, **kwargs):
+    clf = Classifier(**kwargs).fit(X_train, y_train)
 
-    print(max_depth, "Accuracy:", metrics.accuracy_score(y_test, y_pred))
-    print(metrics.classification_report(y_test, y_pred))
+    y_train_pred = clf.predict(X_train)
+    y_test_pred = clf.predict(X_test)
+
+    return {
+        'train': {
+            'accuracy': metrics.accuracy_score(y_train, y_train_pred),
+            'recall': metrics.recall_score(y_train, y_train_pred),
+            'precision': metrics.precision_score(y_train, y_train_pred),
+        },
+        'test': {
+            'accuracy': metrics.accuracy_score(y_test, y_test_pred),
+            'recall': metrics.recall_score(y_test, y_test_pred),
+            'precision': metrics.precision_score(y_test, y_test_pred),
+        },
+    }
 
 
-test_decision_tree(3)
-test_decision_tree(5)
+dt_res = []
+for i in range(1, 100):
+    dt_res.append(test_classifier(DecisionTreeClassifier, max_depth=i))
 
-for i in range(60):
-    y_pred = KNeighborsClassifier(n_neighbors=i + 1).fit(
-        X_train, y_train).predict(X_test)
+plt.plot(list(map(lambda x: x['train']['accuracy'], dt_res)))
+plt.plot(list(map(lambda x: x['test']['accuracy'], dt_res)))
 
-    print(i + 1, metrics.accuracy_score(y_test, y_pred))
+plt.show()
+
+plt.plot(list(map(lambda x: x['train']['recall'], dt_res)))
+plt.plot(list(map(lambda x: x['test']['recall'], dt_res)))
+
+plt.show()
+
+plt.plot(list(map(lambda x: x['train']['precision'], dt_res)))
+plt.plot(list(map(lambda x: x['test']['precision'], dt_res)))
+
+plt.show()
+
+
+for i in range(1, 100):
+    test_classifier(KNeighborsClassifier, n_neighbors=i)
+
+print(test_classifier(LogisticRegression, max_iter=1000))

@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn import metrics
 from sklearn.compose import ColumnTransformer
@@ -151,24 +150,42 @@ def test_ensemble_classifier(Classifier, **kwargs):
     print('test', metrics.classification_report(y_test, y_test_pred))
 
 
+def find_most_accurate_hyper_param(res):
+    _, best_param = max(
+        [(v, i + 1) for i, v in enumerate(list(map(lambda x: x['test']['accuracy'], res)))])
+
+    return best_param
+
+
+dt_res = [
+    test_classifier(DecisionTreeClassifier, max_depth=i)
+    for i in range(1, 50)
+]
 plot_metrics(
     DecisionTreeClassifier.__name__,
     'max_depth',
-    [
-        test_classifier(DecisionTreeClassifier, max_depth=i)
-        for i in range(1, 50)
-    ]
+    dt_res,
 )
 
+most_accurate_depth = find_most_accurate_hyper_param(dt_res)
+print("Most accurate Decision Tree Depth:", most_accurate_depth)
+test_ensemble_classifier(DecisionTreeClassifier, max_depth=most_accurate_depth)
 
+
+knn_res = [
+    test_classifier(KNeighborsClassifier, n_neighbors=i)
+    for i in range(1, 50)
+]
 plot_metrics(
     KNeighborsClassifier.__name__,
     'n_neighbors',
-    [
-        test_classifier(KNeighborsClassifier, n_neighbors=i)
-        for i in range(1, 50)
-    ]
+    knn_res,
 )
+
+most_accurate_n_neighbors = find_most_accurate_hyper_param(knn_res)
+print("Most accurate Decision Tree Depth:", most_accurate_n_neighbors)
+test_ensemble_classifier(KNeighborsClassifier,
+                         n_neighbors=most_accurate_n_neighbors)
 
 
 test_ensemble_classifier(LogisticRegression, max_iter=1000)
@@ -176,7 +193,7 @@ test_ensemble_classifier(LogisticRegression, max_iter=1000)
 
 test_ensemble_classifier(
     BaggingClassifier,
-    base_estimator=KNeighborsClassifier(n_neighbors=45),
+    base_estimator=KNeighborsClassifier(n_neighbors=most_accurate_n_neighbors),
     max_samples=0.5,
     max_features=0.5,
     n_estimators=5,
@@ -185,35 +202,92 @@ test_ensemble_classifier(
 
 test_ensemble_classifier(
     BaggingClassifier,
-    base_estimator=DecisionTreeClassifier(max_depth=2),
+    base_estimator=DecisionTreeClassifier(max_depth=most_accurate_depth),
     max_samples=0.5,
     max_features=0.5,
-    n_estimators=2,
+    n_estimators=5,
 )
 
 
 test_ensemble_classifier(
     RandomForestClassifier,
-    n_estimators=30,
-    max_depth=4,
+    max_depth=most_accurate_depth,
+    n_estimators=10,
     max_features=5,
 )
+
+plot_metrics(
+    RandomForestClassifier.__name__,
+    'max_depth',
+    [
+        test_classifier(
+            RandomForestClassifier,
+            max_depth=i,
+            n_estimators=10,
+            max_features=5,
+        )
+        for i in range(1, 50)
+    ]
+)
+
+
+plot_metrics(
+    RandomForestClassifier.__name__,
+    'n_estimators',
+    [
+        test_classifier(
+            RandomForestClassifier,
+            max_depth=most_accurate_depth,
+            n_estimators=i,
+            max_features=5,
+        )
+        for i in range(1, 50)
+    ]
+)
+
 
 test_ensemble_classifier(
     VotingClassifier,
     estimators=[
         (
             DecisionTreeClassifier.__name__,
-            DecisionTreeClassifier(max_depth=2),
+            DecisionTreeClassifier(max_depth=most_accurate_depth),
         ),
         (
             KNeighborsClassifier.__name__,
-            KNeighborsClassifier(n_neighbors=45),
+            KNeighborsClassifier(n_neighbors=most_accurate_n_neighbors),
         ),
         (
             LogisticRegression.__name__,
-            LogisticRegression(),
+            LogisticRegression(max_iter=1000),
         ),
     ],
     voting='hard',
 )
+
+best_dt_res = DecisionTreeClassifier(
+    max_depth=most_accurate_depth).fit(X_train, y_train).predict(X_test)
+
+best_knn_res = KNeighborsClassifier(
+    n_neighbors=most_accurate_n_neighbors).fit(X_train, y_train).predict(X_test)
+
+best_lr_res = LogisticRegression(
+    max_iter=1000).fit(X_train, y_train).predict(X_test)
+
+dt_knn = 0
+dt_lr = 0
+knn_lr = 0
+dt_knn_lr = 0
+
+for i in range(len(best_dt_res)):
+    dt_knn += (best_dt_res[i] == best_knn_res[i])
+    dt_lr += (best_dt_res[i] == best_lr_res[i])
+    knn_lr += (best_knn_res[i] == best_lr_res[i])
+    dt_knn_lr += (best_dt_res[i] == best_knn_res[i]
+                  and best_knn_res[i] == best_lr_res[i])
+
+print('len', len(best_dt_res))
+print('dt_knn', dt_knn)
+print('dt_lr', dt_lr)
+print('knn_lr', knn_lr)
+print('dt_knn_lr', dt_knn_lr)
